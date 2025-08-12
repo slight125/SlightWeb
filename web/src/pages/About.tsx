@@ -1,6 +1,7 @@
 import React from 'react';
 import Navbar from '../components/Navbar';
 import { Section, Card } from '../components/Shared';
+import { FaSeedling, FaHandshake, FaRocket, FaBalanceScale, FaCogs, FaHeart } from 'react-icons/fa';
 
 export default function About() {
   return (
@@ -13,17 +14,23 @@ export default function About() {
 
       <Section title="Our story" subtitle="From fixing a friend’s phone to serving hundreds of happy customers.">
         <div className="grid md:grid-cols-3 gap-4 text-sm text-neutral-300">
-          <Card title="Humble beginnings" subtitle="Started in a dorm room with a screwdriver and a dream." />
-          <Card title="Growing by trust" subtitle="Word of mouth built our reputation for honesty and quality." />
-          <Card title="Future ready" subtitle="We constantly learn and adopt better tools for faster, safer service." />
+          <Card title="Humble beginnings" subtitle="Started in a dorm room with a screwdriver and a dream." icon={<FaSeedling className="text-emerald-400"/>} className="border-emerald-900/40 hover:border-emerald-500/60" />
+          <Card title="Growing by trust" subtitle="Word of mouth built our reputation for honesty and quality." icon={<FaHandshake className="text-amber-300"/>} className="border-amber-900/40 hover:border-amber-500/60" />
+          <Card title="Future ready" subtitle="We constantly learn and adopt better tools for faster, safer service." icon={<FaRocket className="text-cyan-300"/>} className="border-cyan-900/40 hover:border-cyan-500/60" />
         </div>
       </Section>
 
       <Section title="What we value">
         <ul className="grid md:grid-cols-3 gap-4 text-sm text-neutral-300">
-          <li className="rounded border border-neutral-800 p-4">Transparency — clear pricing, clear timelines</li>
-          <li className="rounded border border-neutral-800 p-4">Quality — we use the right parts and stand behind our work</li>
-          <li className="rounded border border-neutral-800 p-4">Care — every device and project gets our full attention</li>
+          <li className="rounded-lg border border-cyan-900/40 hover:border-cyan-500/60 bg-neutral-900/60 p-4 transition-colors">
+            <div className="flex items-start gap-3"><FaBalanceScale className="text-cyan-300"/><span>Transparency — clear pricing, clear timelines</span></div>
+          </li>
+          <li className="rounded-lg border border-emerald-900/40 hover:border-emerald-500/60 bg-neutral-900/60 p-4 transition-colors">
+            <div className="flex items-start gap-3"><FaCogs className="text-emerald-400"/><span>Quality — we use the right parts and stand behind our work</span></div>
+          </li>
+          <li className="rounded-lg border border-rose-900/40 hover:border-rose-500/60 bg-neutral-900/60 p-4 transition-colors">
+            <div className="flex items-start gap-3"><FaHeart className="text-rose-400"/><span>Care — every device and project gets our full attention</span></div>
+          </li>
         </ul>
       </Section>
     </div>

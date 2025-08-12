@@ -1,19 +1,21 @@
 import React from 'react';
 import Navbar from '../components/Navbar';
+import BackgroundFX from '../components/BackgroundFX';
 import { Section, Card, QuoteForm } from '../components/Shared';
 import { LOCATION_URL, MAP_EMBED_URL, CONTACT } from '../config';
 
 export default function Contact() {
   return (
-    <div className="min-h-dvh bg-gradient-to-b from-neutral-950 to-neutral-900 text-neutral-100">
+    <div className="min-h-dvh relative bg-gradient-to-b from-neutral-950 to-neutral-900 text-neutral-100">
       <Navbar />
-      <header className="max-w-6xl mx-auto px-4 py-12">
+      <BackgroundFX />
+      <header className="max-w-6xl mx-auto px-4 pt-4 pb-6 md:py-6">
         <h1 className="text-3xl md:text-4xl font-extrabold">Get in Touch</h1>
         <p className="mt-3 text-neutral-300 max-w-2xl">Questions, quotes, or support? We’re here to help on WhatsApp, phone, email, or Facebook. Visit us at our shop too.</p>
       </header>
       {/* Contact details first */}
       <Section title="Contact Details" subtitle="Reach us directly — we typically reply within minutes during business hours.">
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 gap-4 items-start">
           <Card title="Talk to us">
             <div className="space-y-3 text-base">
               <a href={`tel:${CONTACT.phone}`} className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/60 px-4 py-3 hover:border-brand-500">

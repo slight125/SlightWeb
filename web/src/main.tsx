@@ -10,6 +10,7 @@ import { AuthProvider } from './auth';
 import './styles.css';
 import Repairs from './pages/Repairs';
 import Sales from './pages/Sales';
+import Accessories from './pages/Accessories';
 import Software from './pages/Software';
 import Contact from './pages/Contact';
 import About from './pages/About';
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
   { path: '/', element: <App /> },
   { path: '/repairs', element: <Repairs /> },
   { path: '/sales', element: <Sales /> },
+  { path: '/accessories', element: <Accessories /> },
   { path: '/software', element: <Software /> },
   { path: '/contact', element: <Contact /> },
   { path: '/about', element: <About /> },

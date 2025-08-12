@@ -144,6 +144,27 @@ async function ensureCoreTables() {
       specs TEXT[] NOT NULL DEFAULT '{}',
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    -- Add category column if it doesn't exist (defaults to 'laptop')
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='products' AND column_name='category'
+      ) THEN
+        ALTER TABLE products ADD COLUMN category TEXT NOT NULL DEFAULT 'laptop';
+        UPDATE products SET category = 'laptop' WHERE category IS NULL;
+      END IF;
+    END $$;
+    -- Add image_url column if it doesn't exist
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name='products' AND column_name='image_url'
+      ) THEN
+        ALTER TABLE products ADD COLUMN image_url TEXT;
+      END IF;
+    END $$;
     CREATE TABLE IF NOT EXISTS appointments (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -203,6 +224,7 @@ async function ensureCoreTables() {
   -- Helpful indexes
   CREATE INDEX IF NOT EXISTS idx_products_condition ON products(condition);
   CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at);
+  CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
   CREATE INDEX IF NOT EXISTS idx_services_category ON services(category);
   CREATE INDEX IF NOT EXISTS idx_services_created_at ON services(created_at);
   CREATE INDEX IF NOT EXISTS idx_appointments_user_id ON appointments(user_id);
@@ -503,13 +525,15 @@ const productSchema = z.object({
   name: z.string().min(1),
   price: z.number().positive(),
   condition: z.enum(['new', 'refurbished']),
-  specs: z.array(z.string()).default([])
+  specs: z.array(z.string()).default([]),
+  imageUrl: z.string().url().optional(),
+  category: z.enum(['laptop','accessory']).default('laptop')
 });
 
 app.get('/api/admin/products', authMiddleware, adminOnly, async (_req, res) => {
   const pool = getPool();
   if (!pool) return res.status(503).json({ error: 'Database not configured' });
-  const { rows } = await pool.query('SELECT id, name, price, condition, specs, created_at FROM products ORDER BY id DESC');
+  const { rows } = await pool.query('SELECT id, name, price, condition, specs, image_url, created_at, category FROM products ORDER BY id DESC');
   res.json(rows);
 });
 
@@ -518,10 +542,10 @@ app.post('/api/admin/products', authMiddleware, adminOnly, async (req, res) => {
   if (!pool) return res.status(503).json({ error: 'Database not configured' });
   const parse = productSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: 'Invalid payload', details: parse.error.flatten() });
-  const { name, price, condition, specs } = parse.data;
+  const { name, price, condition, specs, imageUrl, category } = parse.data;
   const { rows } = await pool.query(
-    'INSERT INTO products(name, price, condition, specs) VALUES($1,$2,$3,$4) RETURNING id, name, price, condition, specs',
-    [name, price, condition, specs]
+    'INSERT INTO products(name, price, condition, specs, image_url, category) VALUES($1,$2,$3,$4,$5,$6) RETURNING id, name, price, condition, specs, image_url, category',
+    [name, price, condition, specs, imageUrl ?? null, category]
   );
   res.json(rows[0]);
 });
@@ -532,7 +556,13 @@ app.put('/api/admin/products/:id', authMiddleware, adminOnly, async (req, res) =
   const id = Number(req.params.id);
   const parse = productSchema.partial().safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: 'Invalid payload', details: parse.error.flatten() });
-  const fields = parse.data;
+  const raw = parse.data as any;
+  // Map camelCase to snake_case for DB columns
+  const fields: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (k === 'imageUrl') fields['image_url'] = v;
+    else fields[k] = v as unknown;
+  }
   const setters: string[] = [];
   const values: any[] = [];
   let idx = 1;
@@ -542,7 +572,7 @@ app.put('/api/admin/products/:id', authMiddleware, adminOnly, async (req, res) =
   }
   values.push(id);
   const { rows } = await pool.query(
-    `UPDATE products SET ${setters.join(', ')} WHERE id=$${idx} RETURNING id, name, price, condition, specs`,
+  `UPDATE products SET ${setters.join(', ')} WHERE id=$${idx} RETURNING id, name, price, condition, specs, image_url, category`,
     values
   );
   if (!rows.length) return res.status(404).json({ error: 'Not found' });
@@ -561,8 +591,43 @@ app.delete('/api/admin/products/:id', authMiddleware, adminOnly, async (req, res
 app.get('/api/products/db', async (_req, res) => {
   const pool = getPool();
   if (!pool) return res.json([]);
-  const { rows } = await pool.query('SELECT id, name, price, condition, specs FROM products ORDER BY id DESC');
+  const { rows } = await pool.query('SELECT id, name, price, condition, specs, image_url, category FROM products ORDER BY id DESC');
   res.json(rows);
+});
+
+// Public search with optional category, sorting, and pagination
+app.get('/api/products/search', async (req, res) => {
+  const pool = getPool();
+  if (!pool) return res.json({ items: [], total: 0, page: 1, pageSize: 0 });
+  const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+  const sort = typeof req.query.sort === 'string' ? req.query.sort : 'newest';
+  let page = Number(req.query.page ?? 1);
+  let pageSize = Number(req.query.pageSize ?? 12);
+  if (!Number.isFinite(page) || page < 1) page = 1;
+  if (!Number.isFinite(pageSize) || pageSize < 1 || pageSize > 100) pageSize = 12;
+
+  const where: string[] = [];
+  const values: any[] = [];
+  let i = 1;
+  if (category) { where.push(`category = $${i++}`); values.push(category); }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  let orderBy = 'created_at DESC';
+  if (sort === 'price_asc') orderBy = 'price ASC, created_at DESC';
+  else if (sort === 'price_desc') orderBy = 'price DESC, created_at DESC';
+
+  const totalRes = await pool.query(`SELECT COUNT(*)::int AS count FROM products ${whereSql}`, values);
+  const total = totalRes.rows[0]?.count ?? 0;
+  const offset = (page - 1) * pageSize;
+  const rows = await pool.query(
+    `SELECT id, name, price, condition, specs, image_url, created_at, category
+     FROM products
+     ${whereSql}
+     ORDER BY ${orderBy}
+     LIMIT $${i} OFFSET $${i + 1}`,
+    [...values, pageSize, offset]
+  );
+  res.json({ items: rows.rows, total, page, pageSize });
 });
 
 // --- Admin Services CRUD ---
